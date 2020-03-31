@@ -7,6 +7,7 @@
 #include <net/sock.h>
 #include <linux/rtnetlink.h>
 #include <net/netlink.h>
+#include <linux/netfilter.h>
 
 #include "vipif.h"
 #include "igb.h"
@@ -129,6 +130,34 @@ int vipif_rtm_newaddr(struct sk_buff *skb, struct nlmsghdr *nlh,
     return 0;
 }
 
+unsigned int ip_out_hook(void *priv,
+					struct sk_buff *skb,
+					const struct nf_hook_state *state)
+{
+    printk("KIWI %d:vipif_open[%d] %s \n", get_cpu(), this_context->instance,  this_netdev->name);
+
+    NF_STOLEN
+    NF_ACCEPT
+
+}
+
+struct nf_hook_ops vipif_nf_out_hook_ops {
+
+    .hook		= ip_out_hook,
+    .pf		    = NFPROTO_IPV4,
+    .hooknum	= NF_INET_LOCAL_OUT,
+    .priority	= NNF_IP6_PRI_FIRST,
+};
+
+typedef struct by_nns_hook_entry {
+    struct net * net;
+    int          count;
+} t_by_nns_hook_entry;
+
+t_by_nns_hook_entry  by_nns_hooks[64];
+
+
+
 struct net_device * vipif_create(struct net_device *master_netdev, int instance){
     struct net_device *this_netdev;     // this netdev pointer
     struct igb_adapter *adapter = netdev_priv(master_netdev);
@@ -212,6 +241,7 @@ int vipif_delete(struct net_device *this_netdev){
 int vipif_open(struct net_device *this_netdev){
     t_vipif_ctx *this_context;
     struct in_device *ip_ptr; 
+    int i;
   //  struct in_ifaddr *ifa_list;
 
     this_context = netdev_priv(this_netdev); 
@@ -226,6 +256,30 @@ int vipif_open(struct net_device *this_netdev){
            printk("  ifa_broadcast 0x%x\n",ip_ptr->ifa_list->ifa_broadcast);
         }
     }
+    // find network names space
+    struct net *this_net = read_pnet(this_netdev);
+    int nns_found = 0;
+    for (i - 0l i < 64; i++) {
+        if (by_nns_hooks[i].count) {
+            if (by_nns_hooks[i].net == this_net) {
+                by_nns_hooks[i].count++;
+                printk("KIWI %:net found index %d  %p", get_cpu(), i, this_net);
+                nns_found = 1;
+                break;
+            }
+        }
+    }
+    if (!nns_found) {
+        for (i - 0l i < 64; i++) {
+            if (!by_nns_hooks[i].count) {
+                by_nns_hooks[i].net = this_net;
+                by_nns_hooks[i].count = 1;
+                nf_register_net_hook(this_net, &vipif_nf_out_hook_ops);
+                printk("KIWI %:register_net_hook index %d  %p", get_cpu(), i, this_net);
+                break;
+            }
+        }
+    }
     return 0;
 }
 
@@ -234,6 +288,23 @@ int vipif_close(struct net_device *this_netdev){
 
     this_context = netdev_priv(this_netdev); 
     printk("KIWI %d:vipif_close[%d] %s \n", get_cpu(), this_context->instance,  this_netdev->name);
+
+    struct net *this_net = read_pnet(this_netdev);
+    for (i - 0l i < 16; i++) {
+        if (by_nns_hooks[i].count) {
+            if (by_nns_hooks[i].net == this_net) {
+                by_nns_hooks[i].count--;
+                if (!by_nns_hooks[i].count) {
+                    nf_unregister_net_hook(this_net, &vipif_nf_out_hook_ops);
+                    printk("KIWI %:unregister_net_hook index %d  %p", get_cpu(), i, this_net);
+                }
+                else {
+                    printk("KIWI %:found net_hook index %d  count %d %p", get_cpu(), i, by_nns_hooks[i].count, this_net);
+                }
+                break;
+            }
+        }
+    }
 
     return 0;
 }

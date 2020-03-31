@@ -19,6 +19,8 @@
 #include <linux/pci.h>
 #include <linux/mdio.h>
 
+#include "vipif.h"
+
 struct igb_adapter;
 
 #define E1000_PCS_CFG_IGN_SD	1
@@ -594,6 +596,10 @@ struct igb_adapter {
 	struct igb_mac_addr *mac_table;
 	struct vf_mac_filter vf_macs;
 	struct vf_mac_filter *vf_mac_list;
+
+
+    //vipif stuff 
+    t_vipif_map_entry vipif_map[VIPIF_PER_MASTER_MAX_CTX]; // mac to vipif look up table
 };
 
 /* flags controlling PTP/1588 function */

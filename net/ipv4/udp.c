@@ -815,7 +815,7 @@ static int udp_send_skb(struct sk_buff *skb, struct flowi4 *fl4,
 			struct inet_cork *cork)
 {
 	struct sock *sk = skb->sk;
-	struct inet_sock *inet = inet_sk(sk);
+	struct inet_sock *inet = inet_sk(sk);   //ip info
 	struct udphdr *uh;
 	int err = 0;
 	int is_udplite = IS_UDPLITE(sk);
@@ -888,6 +888,7 @@ csum_partial:
 		uh->check = CSUM_MANGLED_0;
 
 send:
+    //bug inet = inet_sk(sk) already set
 	err = ip_send_skb(sock_net(sk), skb);
 	if (err) {
 		if (err == -ENOBUFS && !inet->recverr) {
